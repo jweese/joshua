@@ -663,4 +663,78 @@ public class Chart {
       combiner.combine(this, this.cells[i][j], i, j, dotNode.getAntSuperNodes(), filteredRules,
           arity, srcPath);
   }
+
+	/**
+	 * This method is intended to print diagnostic information about parse
+	 * failures. We enumerate the spans from longest to shortest, and when we
+	 * find one that is complete, we print: the completed span, its length, the
+	 * associated LHS of the completed item.
+	 * <p>
+	 * With a collection of these outputs, we can generate the average complete
+	 * span length for both source and target (assuming source-side LHS span
+	 * decorations) conditioned on the item type. And possible the most common
+	 * type of completed span, etc.
+	 */
+	public HyperGraph hypergraphRootedAtLongestCompleteSpan() {
+		for (int width = sourceLength; width > 0; width--) {
+			for (int i = 0; i <= sourceLength - width; i++) {
+				final int j = i + width;
+				final Cell current = cells[i][j];
+				if (current == null) {
+					continue;
+				}
+				final List<HGNode> nodes = current.getSortedNodes();
+				if (nodes != null) {
+					final HGNode best = nodes.get(0);
+					// there is some completed node in this span! Let's print some
+					// summary information.
+					System.err.printf("Longest completed span: %d--%d (length %d)\n",
+							i, j, width);
+					System.err.printf("Completed item has label %s\n",
+							Vocabulary.word(best.lhs));
+					// And return a HyperGraph rooted at this span.
+					return new HyperGraph(best, -1, -1, this.segmentID, sourceLength);
+				}
+			}
+		}
+		return null;
+	}
+
+	public HyperGraph hypergraphWithRootSymbol(int rootSymbol) {
+		for (int width = sourceLength; width > 0; width--) {
+			for (int i = 0; i <= sourceLength - width; i++) {
+				final int j = i + width;
+				final Cell current = cells[i][j];
+				if (current == null) {
+					continue;
+				}
+				final List<HGNode> nodes = current.getSortedNodes();
+				if (nodes != null) {
+					final HGNode best = nodes.get(0);
+					if (best.lhs != rootSymbol) continue;
+					// there is some completed node in this span! Let's print some
+					// summary information.
+					System.err.printf("Found complete item with root symbol %s\n", Vocabulary.word(rootSymbol));
+					System.err.printf("Span: %d--%d (length %d)\n",
+							i, j, width);
+					// And return a HyperGraph rooted at this span.
+					return new HyperGraph(best, -1, -1, this.segmentID, sourceLength);
+				}
+			}
+		}
+		return null;
+	}
+
+	public HyperGraph hypergraphRootedAtCell(int i, int j) {
+		final Cell c = cells[i][j];
+		if (c == null) {
+			return null;
+		}
+		final List<HGNode> nodes = c.getSortedNodes();
+		if (nodes != null) {
+			final HGNode best = nodes.get(0);
+			return new HyperGraph(best, -1, -1, this.segmentID, sourceLength);
+		}
+		return null;
+	}
 }
