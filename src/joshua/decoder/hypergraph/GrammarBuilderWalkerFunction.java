@@ -143,12 +143,15 @@ public class GrammarBuilderWalkerFunction implements WalkerFunction {
   }
 
 
-  public static int goalSymbol(HyperGraph hg) {
+  public static int goalSymbol(HyperGraph hg, boolean isSuccessfulParse) {
     if (hg.goalNode == null) {
       System.err.println("goalSymbol: goalNode of hypergraph is null");
       return -1;
     }
-    HGNode symbolNode = getGoalSymbolNode(hg.goalNode);
+		HGNode symbolNode = hg.goalNode;
+		if (isSuccessfulParse) {
+			symbolNode = getGoalSymbolNode(hg.goalNode);
+		}
     if (symbolNode == null) return -1;
     // System.err.printf("goalSymbol: %s\n", result);
     // System.err.printf("symbol node LHS is %d\n", symbolNode.lhs);

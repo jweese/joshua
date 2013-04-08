@@ -116,16 +116,27 @@ public class DecoderThread extends Thread {
     logger.info(String.format("Memory used after sentence %d is %.1f MB", sentence.id(), (Runtime
         .getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1000000.0));
 
-    if (!JoshuaConfiguration.parse || hypergraph == null) {
+    if (!JoshuaConfiguration.parse) {
       return new Translation(sentence, hypergraph, featureFunctions);
     }
 
-    /*
+		boolean isSuccessfulParse = true;
+		if (hypergraph == null) {
+			hypergraph = chart.hypergraphRootedAtLongestCompleteSpan();
+			isSuccessfulParse = false;
+		}
+		/*
      * Synchronous parsing.
      * 
      * Step 1. Traverse the hypergraph to create a grammar for the second-pass parse.
      */
-    Grammar newGrammar = getGrammarFromHyperGraph(JoshuaConfiguration.goal_symbol, hypergraph);
+		Grammar newGrammar;
+		if (isSuccessfulParse) {
+			newGrammar = getGrammarFromHyperGraph(JoshuaConfiguration.goal_symbol, hypergraph);
+		} else {
+			final int sourceLength = sentence.intLattice().size() - 1;
+			newGrammar = getGrammarFromChart(JoshuaConfiguration.goal_symbol, chart, sourceLength);
+		}
     newGrammar.sortGrammar(this.featureFunctions);
     long sortTime = System.currentTimeMillis();
     logger.info(String.format("Sentence %d: New grammar has %d rules.", sentence.id(),
@@ -135,7 +146,7 @@ public class DecoderThread extends Thread {
     Grammar[] newGrammarArray = new Grammar[] { newGrammar };
     Sentence targetSentence = new Sentence(sentence.target(), sentence.id());
     chart = new Chart(targetSentence, featureFunctions, stateComputers, newGrammarArray, "GOAL");
-    int goalSymbol = GrammarBuilderWalkerFunction.goalSymbol(hypergraph);
+    int goalSymbol = GrammarBuilderWalkerFunction.goalSymbol(hypergraph, isSuccessfulParse);
     String goalSymbolString = Vocabulary.word(goalSymbol);
     logger.info(String.format("Sentence %d: goal symbol is %s (%d).", sentence.id(),
         goalSymbolString, goalSymbol));
@@ -150,6 +161,9 @@ public class DecoderThread extends Thread {
         (secondParseTime - startTime) / 1000));
     logger.info(String.format("Memory used after sentence %d is %.1f MB", sentence.id(), (Runtime
         .getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1000000.0));
+		if (englishParse == null) {
+			englishParse = chart.hypergraphRootedAtLongestCompleteSpan();
+		}
 
     return new Translation(sentence, englishParse, featureFunctions); // or do something else
   }
@@ -160,4 +174,19 @@ public class DecoderThread extends Thread {
     walker.walk(hg.goalNode, f);
     return f.getGrammar();
   }
+
+	private static Grammar getGrammarFromChart(String goal, Chart chart, int sourceLength) {
+    GrammarBuilderWalkerFunction f = new GrammarBuilderWalkerFunction(goal);
+    ForestWalker walker = new ForestWalker();
+		for (int width = sourceLength; width > 0; width--) {
+			for (int i = 0; i <= sourceLength - width; i++) {
+				final int j = i + width;
+				HyperGraph hg = chart.hypergraphRootedAtCell(i, j);
+				if (hg != null) {
+					walker.walk(hg.goalNode, f);
+				}
+			}
+		}
+    return f.getGrammar();
+	}
 }
